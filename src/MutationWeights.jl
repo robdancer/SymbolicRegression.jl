@@ -26,6 +26,7 @@ will be normalized to sum to 1.0 after initialization.
 - `break_connection::Float64`: **Only used for `GraphNode`, not regular `Node`**.
    Otherwise, this will automatically be set to 0.0. How often to break a
    connection between two nodes.
+- `swap_node_pair::Float64`: How often to swap two random nodes.
 """
 Base.@kwdef mutable struct MutationWeights
     mutate_constant::Float64 = 0.048
@@ -40,6 +41,7 @@ Base.@kwdef mutable struct MutationWeights
     optimize::Float64 = 0.0
     form_connection::Float64 = 0.5
     break_connection::Float64 = 0.1
+    swap_node_pair::Float64 = 0.1
 end
 
 const mutations = fieldnames(MutationWeights)

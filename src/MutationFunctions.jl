@@ -10,9 +10,27 @@ using DynamicExpressions:
     set_node!,
     count_nodes,
     has_constants,
-    has_operators
+    has_operators,
+    GraphNode,
+    randomised_topological_sort
 using Compat: Returns, @inline
 using ..CoreModule: Options, DATA_TYPE
+
+"""Swap random node pair"""
+function swap_node_pair(tree::AbstractNode, rng::AbstractRNG=default_rng())
+    if (tree.degree == 0)
+        return tree
+    end
+    node1 = rand(rng, NodeSampler(; tree))
+    if !any(t -> t !== node1, tree)
+        return tree
+    end
+    node2 = rand(rng, NodeSampler(; tree, filter=t -> t !== node1))
+    nodet = copy_node(node1)
+    set_node!(node1, node2)
+    set_node!(node2, nodet)
+    return tree
+end
 
 """
     random_node(tree::AbstractNode; filter::F=Returns(true))
@@ -343,6 +361,30 @@ function break_random_connection!(tree::AbstractNode, rng::AbstractRNG=default_r
         parent.r = copy(parent.r)
     end
     return tree
+end
+
+function form_random_connection!(graph::GraphNode, rng::AbstractRNG=default_rng())
+
+    order = randomised_topological_sort(graph)
+
+    if length(order) < 3
+        return graph
+    end
+
+    parenti = rand(rng, 2:length(order))
+    childi = rand(rng, 1:parenti-1)
+
+    parent = order[parenti]
+    child = order[childi]
+
+    if parent.degree == 1 || rand(rng, Bool)
+        parent.l = child
+    else
+        parent.r = child
+    end
+
+    return graph
+
 end
 
 end

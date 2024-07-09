@@ -8,7 +8,8 @@ using DynamicExpressions:
     count_nodes,
     count_constants,
     simplify_tree!,
-    combine_operators
+    combine_operators,
+    randomised_topological_sort
 using ..CoreModule:
     Options, MutationWeights, Dataset, RecordType, sample_mutation, DATA_TYPE, LOSS_TYPE
 using ..ComplexityModule: compute_complexity
@@ -25,6 +26,7 @@ using ..MutationFunctionsModule:
     prepend_random_op,
     insert_random_op,
     delete_random_op!,
+    swap_node_pair,
     crossover_trees,
     form_random_connection!,
     break_random_connection!
@@ -37,7 +39,13 @@ function condition_mutation_weights!(
     if !preserve_sharing(typeof(member.tree))
         weights.form_connection = 0.0
         weights.break_connection = 0.0
+    else
+        # swap_operands, insert_node, and swap_node_pair may be unnecessary when using the graph form and break connection mutators
+        weights.swap_operands = 0.0
+        weights.insert_node = 0.0
+        weights.swap_node_pair = 0.0
     end
+
     if member.tree.degree == 0
         # If equation is too small, don't delete operators
         # or simplify
@@ -232,6 +240,10 @@ function next_generation(
         elseif mutation_choice == :break_connection
             tree = break_random_connection!(tree)
             @recorder tmp_recorder["type"] = "break_connection"
+            is_success_always_possible = true
+        elseif mutation_choice == :swap_node_pair
+            tree = swap_node_pair(tree)
+            @recorder tmp_recorder["type"] = "swap_node_pair"
             is_success_always_possible = true
         else
             error("Unknown mutation choice: $mutation_choice")
