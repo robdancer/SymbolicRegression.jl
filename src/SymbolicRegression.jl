@@ -83,8 +83,6 @@ using DynamicExpressions:
     string_tree,
     print_tree,
     count_nodes,
-    get_constants,
-    set_constants,
     index_constants,
     NodeIndex,
     eval_tree_array,
