@@ -29,7 +29,8 @@ using ..MutationFunctionsModule:
     swap_node_pair,
     crossover_trees,
     form_random_connection!,
-    break_random_connection!
+    break_random_connection!,
+    merge_subexpressions
 using ..ConstantOptimizationModule: optimize_constants
 using ..RecorderModule: @recorder
 
@@ -39,6 +40,7 @@ function condition_mutation_weights!(
     if !preserve_sharing(typeof(member.tree))
         weights.form_connection = 0.0
         weights.break_connection = 0.0
+        weights.merge_subexpressions = 0.0
     else
         # swap_operands, insert_node, and swap_node_pair may be unnecessary when using the graph form and break connection mutators
         weights.swap_operands = 0.0
@@ -245,6 +247,9 @@ function next_generation(
             tree = swap_node_pair(tree)
             @recorder tmp_recorder["type"] = "swap_node_pair"
             is_success_always_possible = true
+        elseif mutation_choice == :merge_subexpressions
+            tree = merge_subexpressions(tree)
+            @recorder tmp_recorder["type"] = "merge_subexpressions"
         else
             error("Unknown mutation choice: $mutation_choice")
         end

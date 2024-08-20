@@ -39,9 +39,11 @@ Base.@kwdef mutable struct MutationWeights
     randomize::Float64 = 0.00023
     do_nothing::Float64 = 0.21
     optimize::Float64 = 0.0
+    # --- values below chosen arbitrarily ---
     form_connection::Float64 = 0.5
     break_connection::Float64 = 0.1
     swap_node_pair::Float64 = 0.1
+    merge_subexpressions::Float64 = 0.01
 end
 
 const mutations = fieldnames(MutationWeights)
