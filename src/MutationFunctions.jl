@@ -29,6 +29,10 @@ function swap_node_pair(tree::AbstractNode, rng::AbstractRNG=default_rng())
     nodet = copy_node(node1)
     set_node!(node1, node2)
     set_node!(node2, nodet)
+    if typeof(tree) <: GraphNode
+        node1.modified = true
+        node2.modified = true
+    end
     return tree
 end
 
@@ -55,6 +59,9 @@ function swap_operands(tree::AbstractNode, rng::AbstractRNG=default_rng())
     end
     node = rand(rng, NodeSampler(; tree, filter=t -> t.degree == 2))
     node.l, node.r = node.r, node.l
+    if typeof(tree) <: GraphNode
+        node.modified = true
+    end
     return tree
 end
 
@@ -70,6 +77,9 @@ function mutate_operator(
         node.op = rand(rng, 1:(options.nuna))
     else
         node.op = rand(rng, 1:(options.nbin))
+    end
+    if typeof(tree) <: GraphNode
+        node.modified = true
     end
     return tree
 end
@@ -101,6 +111,10 @@ function mutate_constant(
 
     if rand(rng) > options.probability_negate_constant
         node.val *= -1
+    end
+
+    if typeof(tree) <: GraphNode
+        node.modified = true
     end
 
     return tree
@@ -145,18 +159,37 @@ function insert_random_op(
     nfeatures::Int,
     rng::AbstractRNG=default_rng(),
 ) where {T<:DATA_TYPE}
-    node = rand(rng, NodeSampler(; tree))
+
+    # now adds new node below sampled node
+
+    if tree.degree == 0
+        return tree
+    end
+
+    node = rand(rng, NodeSampler(; tree, filter=t -> t.degree > 0))
+
+    lb = node.degree == 1 || rand(rng) > 0.5
+
     choice = rand(rng)
     makeNewBinOp = choice < options.nbin / (options.nuna + options.nbin)
-    left = copy_node(node)
 
     if makeNewBinOp
-        right = make_random_leaf(nfeatures, T, typeof(tree), rng)
-        newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nbin)), left, right)
+        other = make_random_leaf(nfeatures, T, typeof(tree), rng)
+        if rand(rng) > 0.5
+            newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nbin)), if lb node.l else node.r end, other)
+        else
+            newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nbin)), other, if lb node.l else node.r end)
+        end
     else
-        newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nuna)), left)
+        newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nuna)), if lb node.l else node.r end)
     end
-    set_node!(node, newnode)
+    
+    if lb
+        node.l = newnode
+    else
+        node.r = newnode
+    end
+
     return tree
 end
 
@@ -167,19 +200,22 @@ function prepend_random_op(
     nfeatures::Int,
     rng::AbstractRNG=default_rng(),
 ) where {T<:DATA_TYPE}
-    node = tree
+
     choice = rand(rng)
     makeNewBinOp = choice < options.nbin / (options.nuna + options.nbin)
-    left = copy_node(tree)
 
     if makeNewBinOp
-        right = make_random_leaf(nfeatures, T, typeof(tree), rng)
-        newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nbin)), left, right)
+        other = make_random_leaf(nfeatures, T, typeof(tree), rng)
+        if rand(rng) > 0.5
+            newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nbin)), tree, other)
+        else
+            newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nbin)), other, tree)
+        end
     else
-        newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nuna)), left)
+        newnode = constructorof(typeof(tree))(rand(rng, 1:(options.nuna)), tree)
     end
-    set_node!(node, newnode)
-    return node
+
+    return newnode
 end
 
 function make_random_leaf(
@@ -247,6 +283,11 @@ function delete_random_op!(
                 parent.r = node.r
             end
         end
+    end
+
+    if typeof(tree) <: GraphNode
+        node.modified = true
+        parent.modified = true
     end
     return tree
 end
@@ -317,6 +358,14 @@ function crossover_trees(
     else # 'n'
         tree2 = node1
     end
+
+    if typeof(tree1) <: GraphNode
+        node1.modified = true
+        parent1.modified = true
+        node2.modified = true
+        parent2.modified = true
+    end
+        
     return tree1, tree2
 end
 
@@ -360,6 +409,7 @@ function break_random_connection!(tree::AbstractNode, rng::AbstractRNG=default_r
     else
         parent.r = copy(parent.r)
     end
+
     return tree
 end
 
@@ -383,8 +433,37 @@ function form_random_connection!(graph::GraphNode, rng::AbstractRNG=default_rng(
         parent.r = child
     end
 
+    parent.modified = true
+
     return graph
 
+end
+
+function merge_subexpressions(graph::GraphNode)
+
+    order = randomised_topological_sort(graph)
+
+    mindist = Inf
+    ma, mb = 0, 0
+    for a in 1:length(order)
+        for b in a+1:length(order)
+            sqdist = reduce((x, y) -> x+y^2, order[a]-order[b])
+            if sqdist < mindist
+                mindist = sqdist
+                ma, mb = a, b
+            end
+        end
+    end
+
+    # swap all b references for a
+    # should never create cycles because b cannot be a child of a
+    for node in order[mb+1:length(order)]
+        if node.degree >= 1 && node.l == order[mb]
+            node.l = order[ma]
+        elseif node.degree >= 2 && node.r == order[mb]
+            mode.r = order[ma]
+        end
+    end
 end
 
 end
